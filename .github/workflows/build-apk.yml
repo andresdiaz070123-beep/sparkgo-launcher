@@ -1,218 +1,47 @@
-name: Construir APK Spark Go
+name: Crear APK Spark Go HUD
 
 on:
   push:
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Descargar archivos
+      - name: 1. Descargar archivos del repositorio
         uses: actions/checkout@v4
 
-      - name: Configurar Java 17
+      - name: 2. Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 3. Instalar Java JDK 17 para Android
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: 17
 
-      - name: Configurar Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.4'
-
-      - name: Armar estructura Android para 8227L
+      - name: 4. Preparar archivos web desde la carpeta www
         run: |
           mkdir -p app/src/main/assets
-          mkdir -p app/src/main/java/com/carlos/sparkgolauncher
-          cp index.html app/src/main/assets/
-          if [ -f spark_rojo.png ]; then cp spark_rojo.png app/src/main/assets/; fi
+          cp www/index.html app/src/main/assets/
+          if [ -f "www/spark_rojo.png" ]; then cp www/spark_rojo.png app/src/main/assets/; fi
 
-          cat << 'EOF' > settings.gradle
-          pluginManagement {
-              repositories { google(); mavenCentral(); gradlePluginPortal() }
-          }
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories { google(); mavenCentral() }
-          }
-          rootProject.name = "SparkGoLauncher"
-          include ':app'
-          EOF
-
-          cat << 'EOF' > app/build.gradle
-          plugins { id 'com.android.application' version '8.2.0' }
-          android {
-              namespace 'com.carlos.sparkgolauncher'
-              compileSdk 33
-              defaultConfig {
-                  applicationId "com.carlos.sparkgolauncher"
-                  minSdk 21
-                  targetSdk 27
-                  versionCode 1
-                  versionName "1.0"
-              }
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_1_8
-                  targetCompatibility JavaVersion.VERSION_1_8
-              }
-          }
-          EOF
-
-          cat << 'EOF' > app/src/main/AndroidManifest.xml
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-              package="com.carlos.sparkgolauncher">
-              <uses-permission android:name="android.permission.INTERNET" />
-              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-              <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-              <application
-                  android:allowBackup="true"
-                  android:label="Spark Go Launcher"
-                  android:usesCleartextTraffic="true"
-                  android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
-                  <activity
-                      android:name=".MainActivity"
-                      android:launchMode="singleTask"
-                      android:screenOrientation="landscape"
-                      android:exported="true">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.HOME" />
-                          <category android:name="android.intent.category.DEFAULT" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          EOF
-
-          cat << 'EOF' > app/src/main/java/com/carlos/sparkgolauncher/MainActivity.java
-          package com.carlos.sparkgolauncher;
-
-          import android.Manifest;
-          import android.app.Activity;
-          import android.content.Context;
-          import android.content.Intent;
-          import android.content.pm.PackageManager;
-          import android.content.pm.ResolveInfo;
-          import android.location.Location;
-          import android.location.LocationListener;
-          import android.location.LocationManager;
-          import android.media.AudioManager;
-          import android.os.Build;
-          import android.os.Bundle;
-          import android.os.SystemClock;
-          import android.view.KeyEvent;
-          import android.webkit.JavascriptInterface;
-          import android.webkit.WebSettings;
-          import android.webkit.WebView;
-          import java.util.List;
-
-          public class MainActivity extends Activity {
-              private WebView webView;
-              private Location ultimaUbicacion = null;
-
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-                  webView = new WebView(this);
-                  WebSettings settings = webView.getSettings();
-                  settings.setJavaScriptEnabled(true);
-                  settings.setDomStorageEnabled(true);
-                  settings.setAllowFileAccess(true);
-                  webView.addJavascriptInterface(new RadioBridge(this), "AndroidBridge");
-                  webView.loadUrl("file:///android_asset/index.html");
-                  setContentView(webView);
-                  verificarPermisosGPS();
-              }
-
-              @Override
-              public void onBackPressed() {}
-
-              private void verificarPermisosGPS() {
-                  if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                      requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 101);
-                  } else {
-                      iniciarVelocimetroGPS();
-                  }
-              }
-
-              @Override
-              public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-                  if (requestCode == 101 && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                      iniciarVelocimetroGPS();
-                  }
-              }
-
-              private void iniciarVelocimetroGPS() {
-                  try {
-                      LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-                      lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 500, 1, new LocationListener() {
-                          @Override
-                          public void onLocationChanged(Location loc) {
-                              float kmh = loc.hasSpeed() ? loc.getSpeed() * 3.6f : 0f;
-                              final String js = "javascript:if(window.actualizarVelocidadGPS) actualizarVelocidadGPS(" + kmh + ");";
-                              webView.post(() -> webView.loadUrl(js));
-                          }
-                          @Override public void onStatusChanged(String p, int s, Bundle e) {}
-                          @Override public void onProviderEnabled(String p) {}
-                          @Override public void onProviderDisabled(String p) {}
-                      });
-                  } catch (SecurityException ignored) {}
-              }
-
-              public class RadioBridge {
-                  Context ctx;
-                  RadioBridge(Context c) { this.ctx = c; }
-
-                  @JavascriptInterface
-                  public void launchByLabel(String nombreBuscado) {
-                      PackageManager pm = ctx.getPackageManager();
-                      Intent mainIntent = new Intent(Intent.ACTION_MAIN, null);
-                      mainIntent.addCategory(Intent.CATEGORY_LAUNCHER);
-                      List<ResolveInfo> apps = pm.queryIntentActivities(mainIntent, 0);
-                      String objetivo = nombreBuscado.equals("Ecualizador") ? "Ajustes" : nombreBuscado;
-
-                      for (ResolveInfo app : apps) {
-                          String label = app.loadLabel(pm).toString().trim();
-                          String pkg = app.activityInfo.packageName.toLowerCase();
-                          if (label.equalsIgnoreCase(objetivo) ||
-                             (objetivo.equals("AndroidAuto") && (label.equalsIgnoreCase("CPLink") || pkg.contains("cplink")))) {
-                              Intent launch = pm.getLaunchIntentForPackage(app.activityInfo.packageName);
-                              if (launch == null) {
-                                  launch = new Intent();
-                                  launch.setClassName(app.activityInfo.packageName, app.activityInfo.name);
-                              }
-                              launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
-                              ctx.startActivity(launch);
-                              return;
-                          }
-                      }
-                  }
-
-                  @JavascriptInterface
-                  public void mediaControl(String cmd) {
-                      AudioManager am = (AudioManager) ctx.getSystemService(Context.AUDIO_SERVICE);
-                      int keyCode = KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE;
-                      if ("next".equals(cmd)) keyCode = KeyEvent.KEYCODE_MEDIA_NEXT;
-                      if ("prev".equals(cmd)) keyCode = KeyEvent.KEYCODE_MEDIA_PREVIOUS;
-                      long eventTime = SystemClock.uptimeMillis();
-                      am.dispatchMediaKeyEvent(new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, keyCode, 0));
-                      am.dispatchMediaKeyEvent(new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, keyCode, 0));
-                  }
-              }
-          }
-          EOF
-
-      - name: Compilar APK
+      - name: 5. Compilar el APK con Capacitor / Gradle
         run: |
-          gradle assembleDebug
-          cp app/build/outputs/apk/debug/app-debug.apk SparkGoLauncher.apk
+          npm install
+          npx cap init SparkHUD com.andresdiaz.sparkhud --web-dir www
+          npx cap add android
+          npx cap sync android
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
-      - name: Entregar APK listo para descargar
+      - name: 6. Subir APK listo para descargar
         uses: actions/upload-artifact@v4
         with:
-          name: SparkGoLauncher-Instalador
-          path: SparkGoLauncher.apk
+          name: Spark-Go-HUD-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
