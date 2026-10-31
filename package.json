@@ -1,0 +1,14 @@
+{
+  "name": "spark-go-hud",
+  "version": "1.0.0",
+  "description": "Launcher Spark Go Sport HUD - Andres Diaz",
+  "main": "www/index.html",
+  "scripts": {
+    "build": "echo 'Listo'"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/core": "^6.0.0"
+  }
+}
