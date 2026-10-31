@@ -1,0 +1,53 @@
+name: Crear APK Spark Go HUD
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Descargar archivos del repositorio
+        uses: actions/checkout@v4
+
+      - name: 2. Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 3. Instalar Java JDK 17 para Android
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: 17
+
+      - name: 4. Crear plataforma Android con Capacitor
+        run: |
+          npm install
+          npx cap add android
+          npx cap sync android
+
+      - name: 5. Configurar Permisos GPS, Pantalla Horizontal y Modo Launcher
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          # Agregar permisos de ubicación y GPS
+          sed -i 's|<application|<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <application|g' "$MANIFEST"
+          # Forzar orientación Horizontal (Landscape)
+          sed -i 's|android:name=".MainActivity"|android:name=".MainActivity" android:screenOrientation="landscape"|g' "$MANIFEST"
+          # Registrar como Launcher principal del sistema (Home)
+          sed -i 's|<category android:name="android.intent.category.LAUNCHER" />|<category android:name="android.intent.category.LAUNCHER" />\n                <category android:name="android.intent.category.HOME" />\n                <category android:name="android.intent.category.DEFAULT" />|g' "$MANIFEST"
+
+      - name: 6. Compilar el archivo APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: 7. Subir APK listo para descargar
+        uses: actions/upload-artifact@v4
+        with:
+          name: Spark-Go-HUD-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
