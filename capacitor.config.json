@@ -1,0 +1,6 @@
+{
+  "appId": "com.andresdiaz.sparkhud",
+  "appName": "Spark Go HUD",
+  "webDir": "www",
+  "bundledWebRuntime": false
+}
